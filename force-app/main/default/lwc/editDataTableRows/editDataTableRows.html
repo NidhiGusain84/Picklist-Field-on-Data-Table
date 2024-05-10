@@ -1,0 +1,6 @@
+<template>
+    <template lwc:if={contactData}>
+        <c-custom-data-type key-field="Id" data={contactData} columns={columns} onsave={saveHandler}
+            draft-values={draftValues}></c-custom-data-type>
+    </template>
+</template>
