@@ -1,11 +1,17 @@
 import { LightningElement, api, wire } from 'lwc';
 import getContactsBasedOnAccount from '@salesforce/apex/ContactController.getContactsBasedOnAccount';
-import { updateRecord } from 'lightning/uiRecordApi';
+import { deleteRecord, updateRecord } from 'lightning/uiRecordApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
 import { getObjectInfo, getPicklistValues } from 'lightning/uiObjectInfoApi';
 import CONTACT_OBJECT from '@salesforce/schema/Contact';
 import LEAD_SOURCE_FIELD from '@salesforce/schema/Contact.LeadSource';
+
+const ACTIONS = [
+    { label: 'View', name: 'view' },
+    { label: 'Edit', name: 'edit' },
+    { label: 'Delete', name: 'delete' }
+];
 
 const COLUMNS = [
     { label: 'First Name', fieldName: 'FirstName', editable: true },
@@ -19,7 +25,8 @@ const COLUMNS = [
             value: { fieldName: 'LeadSource' },
             context: { fieldName: 'Id' }
         }
-    }
+    },
+    { type: 'action', typeAttributes: { rowActions: ACTIONS } }
 ];
 
 export default class EditDataTableRows extends LightningElement {
@@ -29,6 +36,10 @@ export default class EditDataTableRows extends LightningElement {
     draftValues = [];
     contactRefreshProp;
     leadSourceOptions = [];
+    viewMode = false;
+    editMode = false;
+    showModal = false;
+    selectedRecordId;
 
     @wire(getContactsBasedOnAccount, {
         accountId: "$recordId",
@@ -83,10 +94,63 @@ export default class EditDataTableRows extends LightningElement {
         const toastEvent = new ShowToastEvent({
             title: 'Success',
             variant: 'success',
-            message: 'Records updated successfully.',
+            message: 'Record updated successfully.',
         });
         this.dispatchEvent(toastEvent);
         await refreshApex(this.contactRefreshProp);
     }
+
+    rowActionHandler(event) {
+        let action = event.detail.action;
+        let selectedRow = event.detail.row;
+        this.selectedRecordId = selectedRow.Id;
+        this.viewMode = false;
+        this.editMode = false;
+        this.showModal = false;
+
+        if (action.name === 'view') {
+            this.viewMode = true;
+            this.showModal = true;
+        }
+        else if (action.name === 'edit') {
+            this.editMode = true;
+            this.showModal = true;
+        }
+        else if (action.name === 'delete') {
+            this.deleteHandler();
+        }
+    }
+
+    async deleteHandler() {
+        try {
+            await deleteRecord(this.selectedRecordId);
+
+            const toastEvent = new ShowToastEvent({
+                title: 'Success',
+                variant: 'success',
+                message: 'Record deleted successfully.',
+            });
+            this.dispatchEvent(toastEvent);
+
+            await refreshApex(this.contactRefreshProp);
+        } catch (error) {
+            const toastEvent = new ShowToastEvent({
+                title: 'Error',
+                variant: 'error',
+                message: error.body.message,
+            });
+            this.dispatchEvent(toastEvent);
+        }
+
+    }
+
+
+    async closeModal() {
+        this.showModal = false;
+        if (this.editMode) {
+            await refreshApex(this.contactRefreshProp);
+        }
+    }
+
 
 }
