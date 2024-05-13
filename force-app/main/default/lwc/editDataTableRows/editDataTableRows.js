@@ -12,15 +12,18 @@ const ACTIONS = [
     { label: 'Edit', name: 'edit' },
     { label: 'Delete', name: 'delete' }
 ];
+const DEFAULT_ACTIONS = [{ label: 'All', checked: true, name: 'all' }];
 
 const COLUMNS = [
-    { label: 'First Name', fieldName: 'FirstName', editable: true },
-    { label: 'Last Name', fieldName: 'LastName', editable: true },
-    { label: 'Title', fieldName: 'Title', editable: true },
-    { label: 'Phone', fieldName: 'Phone', type: 'phone' },
-    { label: 'Email', fieldName: 'Email', type: 'email' },
+    { label: 'First Name', fieldName: 'FirstName', editable: true, hideDefaultActions: true },
+    { label: 'Last Name', fieldName: 'LastName', editable: true, hideDefaultActions: true },
+    { label: 'Title', fieldName: 'Title', editable: true, hideDefaultActions: true },
+    { label: 'Phone', fieldName: 'Phone', type: 'phone', hideDefaultActions: true },
+    { label: 'Email', fieldName: 'Email', type: 'email', hideDefaultActions: true },
     {
-        label: 'Lead Source', fieldName: 'LeadSource', type: 'customPicklist', editable: true, typeAttributes: {
+        label: 'Lead Source', fieldName: 'LeadSource', type: 'customPicklist', editable: true, hideDefaultActions: true,
+        actions: DEFAULT_ACTIONS,
+        typeAttributes: {
             options: { fieldName: 'picklistOptions' },
             value: { fieldName: 'LeadSource' },
             context: { fieldName: 'Id' }
@@ -40,6 +43,9 @@ export default class EditDataTableRows extends LightningElement {
     editMode = false;
     showModal = false;
     selectedRecordId;
+    leadSourceActions = [];
+    loadActionCompleted = false;
+    contactAllData = [];
 
     @wire(getContactsBasedOnAccount, {
         accountId: "$recordId",
@@ -55,7 +61,7 @@ export default class EditDataTableRows extends LightningElement {
                     picklistOptions: picklistOptions
                 };
             });
-
+            this.contactAllData = [...this.contactData];
         } else if (result.error) {
             console.log("Error while loading records.");
         }
@@ -71,6 +77,22 @@ export default class EditDataTableRows extends LightningElement {
     }) wiredPicklist({ data, error }) {
         if (data) {
             this.leadSourceOptions = data.values;
+            this.leadSourceActions = [];
+
+            data.values.forEach(currentItem => {
+                this.leadSourceActions.push({
+                    label: currentItem.label,
+                    checked: false,
+                    name: currentItem.value
+                });
+            });
+            this.columns.forEach(currentItem => {
+                if (currentItem.fieldName === 'LeadSource') {
+                    currentItem.actions = [...currentItem.actions, ...this.leadSourceActions];
+                }
+            });
+            this.loadActionCompleted = true;
+
         } else if (error) {
             console.log("Error while loading data", error);
         }
@@ -152,5 +174,35 @@ export default class EditDataTableRows extends LightningElement {
         }
     }
 
+    headerActionHandler(event) {
+        let actionName = event.detail.action.name;
+        const cols = [...this.columns];
+        console.log('actionName', actionName);
+        console.log('cols', cols);
+
+        if (actionName === 'all') {
+            this.contactData = [...this.contactAllData];
+        } else {
+            this.contactData = this.contactAllData.filter(currentItem => actionName === currentItem['LeadSource']);
+        }
+
+        cols.find((currentItem) => currentItem.fieldName === 'LeadSource')
+            .actions.forEach((currentItem) => {
+                if (currentItem.name === actionName) {
+                    currentItem.checked = true;
+                } else {
+                    currentItem.checked = false;
+                }
+            });
+        this.columns = [...cols]
+    }
+
+    get displayData() {
+        if (this.contactData && this.loadActionCompleted === true) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 
 }
